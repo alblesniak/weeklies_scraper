@@ -1,12 +1,16 @@
-# Define here the models for your scraped items
-#
-# See documentation in:
-# https://docs.scrapy.org/en/latest/topics/items.html
-
-import scrapy
+from scrapy.item import Item, Field
 
 
-class WeekliesScraperItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+class WeekliesScraperItem(Item):
+    issue_name = Field()
+    issue_number = Field()
+    issue_year = Field()
+    issue_url = Field()
+    issue_cover_url = Field()
+    section_name = Field()
+    article_title = Field()
+    article_intro = Field()
+    article_authors = Field()
+    article_url = Field()
+    article_content = Field()
+    article_tags = Field()
