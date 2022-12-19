@@ -1,0 +1,19 @@
+{
+  "projects": [
+    {
+      "project_id": "ProjectID1",
+      "instance_group": "InstanceGroupName1",
+      "zone": "us-east1-b"
+    },
+    {
+      "project_id": "ProjectID2",
+      "instance_group": "InstanceGroupName2",
+      "zone": "us-west1-b"
+    },
+    {
+      "project_id": "ProjectID1",
+      "instance_group": "InstanceGroupName1",
+      "zone": "us-east1-b"
+    }
+  ]
+}
