@@ -4,6 +4,7 @@ import json
 import re
 import time
 import logging
+from .weeklies_scraper import settings
 
 # Set up the logger
 logging.basicConfig(level=logging.INFO,
@@ -78,11 +79,8 @@ def main():
     args = parser.parse_args()
 
     # Load proxy servers configuration from a JSON file
-    with open("gcloud_proxies_config.json", "r") as f:
+    with open(settings['GCLOUD_CONFIG_FILE'], "r") as f:
         config = json.load(f)
-
-    # Declare empty proxies list
-    proxy_list = []
 
     # Start GCP proxy servers
     for project in config["projects"]:
@@ -97,10 +95,17 @@ def main():
         # List the proxy instances
         proxies = manager.listproxy()
 
+        # Get the file name, open port and credentials for proxy servers
+        proxy_file = settings['PROXY_SERVERS_FILE']
+        proxy_port = settings['PROXY_PORT']
+        proxy_login = settings['PROXY_LOGIN']
+        proxy_password = settings['PROXY_PASSWORD']
+
         # Append proxy list to the text file
-        with open('proxy_list.txt', 'a') as f:
+        with open(proxy_file, 'a') as f:
             # Convert the list of strings to a list of bytes objects
-            lines = [f'{line}:3128\n' for line in proxies.split('\n')]
+            lines = [
+                f'{line}:{proxy_port}:{proxy_login}:{proxy_password}\n' for line in proxies.split('\n')]
             # Write the lines to the file
             f.writelines(lines)
 

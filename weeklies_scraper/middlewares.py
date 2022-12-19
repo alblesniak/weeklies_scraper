@@ -1,7 +1,54 @@
+import random
 from scrapy import signals
-
+from scrapy import settings
+from scrapy.downloadermiddlewares.httpproxy import HttpProxyMiddleware
+from scrapy.exceptions import IgnoreRequest
 # useful for handling different item types with a single interface
 from itemadapter import is_item, ItemAdapter
+
+
+class RandomProxy(HttpProxyMiddleware):
+    """
+    A middleware that randomly selects a proxy from a list of proxies
+    and sets it for each request.
+    """
+
+    def __init__(self, auth_encoding='latin-1'):
+        """
+        Initialize the middleware with the specified encoding for the
+        HTTP basic auth credentials in the proxy.
+        """
+        super(RandomProxy, self).__init__(auth_encoding)
+        # Load the list of proxies from a file
+        with open(settings['PROXY_SERVERS_FILE'], 'r') as f:
+            self.proxies = [line.strip() for line in f]
+        # Set the threshold for the number of failures
+        # after which a proxy is removed from the list
+        self.fail_threshold = 3
+        # Keep track of the number of failures for each proxy
+        self.fail_counts = {}
+
+    def process_request(self, request, spider):
+        """
+        Set a random proxy for the request.
+        """
+        request.meta['proxy'] = random.choice(self.proxies)
+        # Initialize the failure count for the proxy
+        self.fail_counts[request.meta['proxy']] = 0
+
+    def process_response(self, request, response, spider):
+        """
+        Handle the response for the request.
+        If the response status is greater than or equal to 400,
+        increment the failure count for the proxy and remove it
+        from the list if the number of failures exceeds the threshold.
+        """
+        if response.status >= 400:
+            self.fail_counts[request.meta['proxy']] += 1
+            if self.fail_counts[request.meta['proxy']] >= self.fail_threshold:
+                self.proxies.remove(request.meta['proxy'])
+            raise IgnoreRequest
+        return response
 
 
 class WeekliesScraperSpiderMiddleware:
