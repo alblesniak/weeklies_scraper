@@ -8,6 +8,10 @@ import concurrent.futures
 import importlib
 import os
 import scrapy
+
+from google.auth import compute_engine
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.spider import iter_spider_classes
 from scrapy.utils.project import get_project_settings
@@ -21,53 +25,79 @@ logging.basicConfig(level=logging.INFO,
 class GCloudManager:
     # Initialize the GCloudManager instance with the specified project ID, instance group name, and zone.
     def __init__(self, project_id, instance_group_name, zone):
+        '''
+        Sets up parameters for the GCloudManager
+        Parameters:
+        - project_id (str): The ID of the project.
+        - instance_group_name (str): The name of the instance group.
+        - zone (str): The zone where the instance group is located.
+        '''
+
         self.project_id = project_id
         self.instance_group_name = instance_group_name
         self.zone = zone
 
-        # Set the project using the `gcloud config set` command.
-        logging.info(f'Starting GCP project: {self.project_id}')
-        command = f"gcloud config set project {self.project_id}  > /dev/null"
-        subprocess.run(command, shell=True)
+    def resize_instance_group(self, target_size):
+        """
+        Resizes an instance group to the specified size.
 
-    # Resize the instance group to the specified size using the `gcloud compute instance-groups managed resize` command.
-    def resize(self, size):
-        logging.info(
-            f'Resizing instance group: {self.instance_group_name}, zone: {self.zone}, size: {size}')
-        command = f"gcloud compute instance-groups managed resize {self.instance_group_name} --zone {self.zone} --size={size} > /dev/null"
-        subprocess.run(command, shell=True)
+        Parameters:
+        - size (int): The new size of the instance group.
 
-    # Wait for the virtual machines to be set up by checking the status of the instance group using the `gcloud compute instance-groups managed describe` command.
-    def wait_for_vm_setup(self):
-        while True:
-            # Get the information about instance groups
-            command = f"gcloud compute instance-groups managed describe {self.instance_group_name} --zone {self.zone}"
-            output = subprocess.run(command, shell=True, capture_output=True)
-            # Compile the regular expression to search for the `isStable` field in the output.
-            pattern = re.compile(r"isStable:\s+(true)")
-            # Search the text for the regular expression
-            match = pattern.search(str(output.stdout))
-            # Check if a match was found
-            if match:
-                # Extract the captured group
-                status = match.group(1)
-                logging.info(f'Proxy servers running up. Status: {status}')
-                break
-            else:
-                logging.info('Waiting for proxy server to run up.')
-                time.sleep(2)
+        Returns:
+        - operation (Dict[str, Any]): The operation that resizes the instance group.
+        """
+        credentials = compute_engine.Credentials(
+            quota_project_id=self.project_id)
+        # Build the compute service client
+        service = build(
+            'compute', 'v1', credentials=credentials)
+        print(service)
+        # Get the instance group resource
+        instance_group = service.instanceGroups().get(
+            project=self.project_id,
+            zone=self.zone,
+            instanceGroup=self.instance_group_name
+        ).execute()
 
-    # Get the list of proxy instances using the `gcloud compute instances list` command and return them as a string.
-    def listproxy(self):
-        # Wait for the virtual machines to be set up
-        self.wait_for_vm_setup()
+        # Set the target size of the instance group
+        instance_group['targetSize'] = target_size
 
-        # Get the list of instances and extract the external IP addresses
-        command = "gcloud compute instances list | awk '/RUNNING/ { print $5 }'"
-        output = subprocess.run(command, shell=True, capture_output=True)
-        proxies = output.stdout.decode().strip()
-        logging.info(f'Proxy servers:\n{proxies}')
-        return proxies
+        # Resize the instance group
+        response = service.instanceGroups().resize(
+            project=self.project_id,
+            zone=self.zone,
+            instanceGroup=self.instance_group_name,
+            size=target_size
+        ).execute()
+
+        return response
+
+    def get_proxies(self):
+        # Authenticate and create a service client
+        service = build('compute', 'v1', credentials=self.creds)
+        # Retrieve the instance group and its instances
+        instance_group = service.instanceGroups().get(project=self.project_id, zone=self.zone,
+                                                      instanceGroup=self.instance_group_name).execute()
+        instances = service.instanceGroups().listInstances(project=self.project_id, zone=self.zone,
+                                                           instanceGroup=self.instance_group_name, filter='all').execute()['items']
+
+        # Wait for the instance group to be fully created
+        while instance_group['status'] != 'RUNNING':
+            logging.info('Waiting for instance group to be created...')
+            time.sleep(3)
+            instance_group = service.instanceGroups().get(project=self.project_id, zone=self.zone,
+                                                          instanceGroup=self.instance_group_name).execute()
+
+        # Retrieve the external IP addresses of the instances
+        external_ips = []
+        for instance in instances:
+            instance_info = service.instances().get(project=self.project_id, zone=self.zone,
+                                                    instance=instance['instance']).execute()
+            external_ips.append(
+                instance_info['networkInterfaces'][0]['accessConfigs'][0]['natIP'])
+
+        return external_ips
 
 
 def parse_args(settings):
@@ -75,7 +105,8 @@ def parse_args(settings):
     parser = argparse.ArgumentParser()
     parser.add_argument("--gcloud-config-file", type=str,
                         help="Directory containing the JSON config file for proxy servers", default=settings['GCLOUD_CONFIG_FILE'])
-    # TODO: Implement logic if the `GCLOUD_CONFIG_FILE` is not specified and project arguments have to be spicified manually.
+    parser.add_argument("--gcloud-key", type=str,
+                        help="Directory containing JSON file with authentication keys for GCP", default=settings['GCLOUD_KEYS_FILE'])
     parser.add_argument("--project-id", required=False,
                         help="The ID of the Google Cloud Platform project")
     parser.add_argument("--instance-group", required=False,
@@ -143,7 +174,7 @@ def main():
                                 instance_group_name=project["instance_group"],
                                 zone=project["zone"])
         # Start and get GCP proxy servers
-        manager.resize(size=8)
+        manager.resize_instance_group(target_size=8)
         proxies = manager.listproxy()
         # Provide data for proxy servers and append them to the text file
         with open(settings['PROXY_SERVERS_FILE'], 'a') as f:
@@ -189,7 +220,7 @@ def main():
     #     concurrent.futures.wait(results)
 
     # Stop GCP proxy servers
-    manager.resize(size=0)
+    manager.resize_instance_group(size=0)
     logging.info('Proxy servers stopped.')
 
 
