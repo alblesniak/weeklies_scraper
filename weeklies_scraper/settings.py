@@ -55,9 +55,6 @@ LOG_LEVEL = "INFO"
 # See: https://www.youtube.com/watch?v=0MZY649MiQM&t
 GCLOUD_CONFIG_FILE = "gcloud_proxies_config.json"
 
-# Set path to the Google Cloud Platform keys JSON file
-GCLOUD_KEYS_FILE = "gcp_key.json"
-
 # Set path to file with proxy servers
 PROXY_SERVERS_FILE = "proxy_servers.txt"
 

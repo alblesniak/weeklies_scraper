@@ -1,5 +1,5 @@
 from scrapy import Item, Field
-from scrapy.loader.processors import TakeFirst, Join
+from itemloaders.processors import TakeFirst, Join
 
 
 class WeekliesScraperItem(Item):

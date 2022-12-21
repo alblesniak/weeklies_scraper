@@ -7,13 +7,9 @@ import logging
 import concurrent.futures
 import importlib
 import os
-import scrapy
-
-from google.auth import compute_engine
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.spider import iter_spider_classes
+from twisted.internet import reactor
+from scrapy.crawler import CrawlerRunner
+from scrapy.utils.log import configure_logging
 from scrapy.utils.project import get_project_settings
 
 
@@ -25,79 +21,54 @@ logging.basicConfig(level=logging.INFO,
 class GCloudManager:
     # Initialize the GCloudManager instance with the specified project ID, instance group name, and zone.
     def __init__(self, project_id, instance_group_name, zone):
-        '''
-        Sets up parameters for the GCloudManager
-        Parameters:
-        - project_id (str): The ID of the project.
-        - instance_group_name (str): The name of the instance group.
-        - zone (str): The zone where the instance group is located.
-        '''
-
         self.project_id = project_id
         self.instance_group_name = instance_group_name
         self.zone = zone
 
-    def resize_instance_group(self, target_size):
-        """
-        Resizes an instance group to the specified size.
+        # Set the project using the `gcloud config set` command.
+        logging.info(f'Starting GCP project: {self.project_id}')
+        command = f"gcloud config set project {self.project_id}  > /dev/null"
+        subprocess.run(command, shell=True)
 
-        Parameters:
-        - size (int): The new size of the instance group.
+    # Resize the instance group to the specified size using the `gcloud compute instance-groups managed resize` command.
+    def resize(self, size):
+        logging.info(
+            f'Resizing instance group: {self.instance_group_name}, zone: {self.zone}, size: {size}')
+        command = f"gcloud compute instance-groups managed resize {self.instance_group_name} --zone {self.zone} --size={size} > /dev/null"
+        subprocess.run(command, shell=True)
 
-        Returns:
-        - operation (Dict[str, Any]): The operation that resizes the instance group.
-        """
-        credentials = compute_engine.Credentials(
-            quota_project_id=self.project_id)
-        # Build the compute service client
-        service = build(
-            'compute', 'v1', credentials=credentials)
-        print(service)
-        # Get the instance group resource
-        instance_group = service.instanceGroups().get(
-            project=self.project_id,
-            zone=self.zone,
-            instanceGroup=self.instance_group_name
-        ).execute()
+    # Wait for the virtual machines to be set up by checking the status of the instance group using the `gcloud compute instance-groups managed describe` command.
+    def wait_for_vm_setup(self):
+        while True:
+            # Get the information about instance groups
+            command = f"gcloud compute instance-groups managed describe {self.instance_group_name} --zone {self.zone}"
+            output = subprocess.run(command, shell=True, capture_output=True)
+            print(output.stdout)
+            # Compile the regular expression to search for the `isStable` field in the output.
+            pattern = re.compile(r"isStable:\s+(true)")
+            # Search the text for the regular expression
+            match = pattern.search(str(output.stdout))
+            # Check if a match was found
+            if match:
+                # Extract the captured group
+                status = match.group(1)
+                logging.info(f'Proxy servers running up. Status: {status}')
+                break
+            else:
+                logging.info('Waiting for proxy server to run up.')
+                time.sleep(2)
 
-        # Set the target size of the instance group
-        instance_group['targetSize'] = target_size
+    # Get the list of proxy instances using the `gcloud compute instances list` command and return them as a string.
+    def listproxy(self):
+        # Wait for the virtual machines to be set up
+        self.wait_for_vm_setup()
 
-        # Resize the instance group
-        response = service.instanceGroups().resize(
-            project=self.project_id,
-            zone=self.zone,
-            instanceGroup=self.instance_group_name,
-            size=target_size
-        ).execute()
-
-        return response
-
-    def get_proxies(self):
-        # Authenticate and create a service client
-        service = build('compute', 'v1', credentials=self.creds)
-        # Retrieve the instance group and its instances
-        instance_group = service.instanceGroups().get(project=self.project_id, zone=self.zone,
-                                                      instanceGroup=self.instance_group_name).execute()
-        instances = service.instanceGroups().listInstances(project=self.project_id, zone=self.zone,
-                                                           instanceGroup=self.instance_group_name, filter='all').execute()['items']
-
-        # Wait for the instance group to be fully created
-        while instance_group['status'] != 'RUNNING':
-            logging.info('Waiting for instance group to be created...')
-            time.sleep(3)
-            instance_group = service.instanceGroups().get(project=self.project_id, zone=self.zone,
-                                                          instanceGroup=self.instance_group_name).execute()
-
-        # Retrieve the external IP addresses of the instances
-        external_ips = []
-        for instance in instances:
-            instance_info = service.instances().get(project=self.project_id, zone=self.zone,
-                                                    instance=instance['instance']).execute()
-            external_ips.append(
-                instance_info['networkInterfaces'][0]['accessConfigs'][0]['natIP'])
-
-        return external_ips
+        # Get the list of instances and extract the external IP addresses
+        command = "gcloud compute instances list | awk '/RUNNING/ { print $5 }'"
+        output = subprocess.run(command, shell=True, capture_output=True)
+        proxies = output.stdout.decode().strip()
+        logging.info(f'Proxy servers:\n{proxies}')
+        return proxies
 
 
 def parse_args(settings):
@@ -105,8 +76,7 @@ def parse_args(settings):
     parser = argparse.ArgumentParser()
     parser.add_argument("--gcloud-config-file", type=str,
                         help="Directory containing the JSON config file for proxy servers", default=settings['GCLOUD_CONFIG_FILE'])
-    parser.add_argument("--gcloud-key", type=str,
-                        help="Directory containing JSON file with authentication keys for GCP", default=settings['GCLOUD_KEYS_FILE'])
+    # TODO: Implement logic if the `GCLOUD_CONFIG_FILE` is not specified and project arguments have to be spicified manually.
     parser.add_argument("--project-id", required=False,
                         help="The ID of the Google Cloud Platform project")
     parser.add_argument("--instance-group", required=False,
@@ -120,20 +90,20 @@ def parse_args(settings):
     parser.add_argument("--all", action="store_true",
                         help="Run all available spiders")
     parser.add_argument("--spider-dir", type=str, help="Directory containing the spiders",
-                        default=os.path.abspath("weeklies_scraper/spiders/"))
+                        default=os.path.abspath("./weeklies_scraper/spiders/"))
     args = parser.parse_args()
     return args
 
 
-def run_spider(spider):
-    # Create a CrawlerProcess instance to run the Scrapy spider
-    process = CrawlerProcess(settings={
-        'LOG_LEVEL': 'ERROR'
-    })
-    # Add the spider to the process
-    process.crawl(spider)
-    # Start the spider
-    process.start()
+def run_spiders(spider_list):
+    configure_logging()
+    runner = CrawlerRunner()
+    # Add each spider to the runner using the map function
+    runner.crawl(*map(runner.create_crawler, spider_list))
+    # Start the crawl process
+    d = runner.join()
+    d.addBoth(lambda _: reactor.stop())
+    reactor.run()
 
 
 def main():
@@ -174,54 +144,56 @@ def main():
                                 instance_group_name=project["instance_group"],
                                 zone=project["zone"])
         # Start and get GCP proxy servers
-        manager.resize_instance_group(target_size=8)
+        manager.resize(size=8)
         proxies = manager.listproxy()
         # Provide data for proxy servers and append them to the text file
         with open(settings['PROXY_SERVERS_FILE'], 'a') as f:
             lines = [
-                f'''{line}:{settings['PROXY_PORT']}:{settings['PROXY_LOGIN']}:{'PROXY_PASSWORD'}\n''' for line in proxies.split('\n')]
+                f'''{line}:{settings['PROXY_PORT']}:{settings['PROXY_LOGIN']}:{settings['PROXY_PASSWORD']}\n''' for line in proxies.split('\n')]
             f.writelines(lines)
 
     # If the --all argument is specified, get a list of all available spiders in the specified directory
     if args.all:
-        # Create an empty list to hold the spiders
-        spiders = []
-        # Get the directory containing the spiders from the command line arguments
-        spider_dir = args.spider_dir
-        print(spider_dir)
-        # Iterate over all modules in the specified directory
-    #     for module_name in os.listdir(spider_dir):
-    #         # Ignore modules that don't end with ".py"
-    #         if not module_name.endswith(".py"):
-    #             continue
-    #         # Import the module
-    #         module = importlib.import_module(module_name[:-3])
-    #         # Iterate over the spider classes in the module
-    #         for spider_class in iter_spider_classes(module):
-    #             # Add an instance of the spider class to the list
-    #             spiders.append(spider_class())
-    # # If the spider name is specified, import the module that contains the spider and get the spider class
-    # elif args.spider:
-    #     spider_module = __import__(args.spider)
-    #     spider_class = getattr(spider_module, args.spider)
-    #     # Create a list with a single instance of the spider
-    #     spiders = [spider_class()]
-    # # If no spider is specified, raise an error
-    # else:
-    #     raise ValueError(
-    #         "You must specify a spider to run or use the --all argument to run all available spiders")
+        spiders = [spider.rstrip('.py') for spider in os.listdir(
+            args.spider_dir) if spider.endswith(".py") and not spider.startswith("__")]
+    # If the spider name is specified include the only one in the list
+    elif args.spider:
+        spiders = [args.spider]
+    # If no spider is specified, raise an error
+    else:
+        raise ValueError(
+            "You must specify a spider to run or use the --all argument to run all available spiders")
+
+    # # Import each spider file and get a list of the classes defined in it
+    # spider_classes = []
+    # for spider_name in spiders:
+    #     module_name = f'weeklies_scraper.spiders.{spider_name}'
+    #     spider_module = importlib.import_module(module_name)
+    #     spider_classes.extend(
+    #         [c for c in dir(spider_module) if c.endswith('Spider')])
 
     # # Use a concurrent.futures.ProcessPoolExecutor to run the spiders concurrently
     # with concurrent.futures.ProcessPoolExecutor() as executor:
     #     # Map the run_spider function to the list of spiders
-    #     results = [executor.submit(run_spider, spider)
-    #                for spider in spiders]
+    #     results = [executor.submit(run_spider, spider) for spider in spiders]
     #     # Wait for all the tasks to complete
     #     concurrent.futures.wait(results)
 
+    # Run Scrapy spiders concurrently
+    run_spiders(spider_list=spiders)
+
     # Stop GCP proxy servers
-    manager.resize_instance_group(size=0)
+    for project in config["projects"]:
+        # Create a GCloudManager instance
+        manager = GCloudManager(project_id=project["project_id"],
+                                instance_group_name=project["instance_group"],
+                                zone=project["zone"])
+        # Start and get GCP proxy servers
+        manager.resize(size=0)
     logging.info('Proxy servers stopped.')
+
+    # Remove file with proxy servers
+    os.remove(settings['PROXY_SERVERS_FILE'])
 
 
 if __name__ == "__main__":
