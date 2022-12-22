@@ -1,39 +1,6 @@
-from scrapy.utils.project import get_project_settings
 from weeklies_scraper.items import WeekliesScraperItem
 import re
 import sqlite3
-import os
-
-
-class ExtractOrConcatenatePipeline(object):
-    def process_item(self, item, spider):
-        # Define the output processor
-        def extract_or_concatenate(values):
-            if len(values) == 1:
-                # Extract the single value if there is only one element
-                return values[0]
-            else:
-                # Concatenate the values if there are multiple elements
-                return " ".join(values)
-
-        # Iterate over the fields of the item object
-        for field in item.fields:
-            # If the field is a list, extract or concatenate
-            if isinstance(item.get(field), list):
-                print(item.fields[field])
-                # Set the output processor for the field
-                item.fields[field].output_processor = extract_or_concatenate
-
-        # Ensure that the article_content field is a string
-        article_content = item["article_content"]
-        if isinstance(article_content, list):
-            # Concatenate the elements of the list into a single string
-            item["article_content"] = " ".join(article_content)
-        else:
-            # Ensure that the article_content field is a string
-            item["article_content"] = str(article_content)
-
-        return item
 
 
 class TextCleanerPipeline(object):

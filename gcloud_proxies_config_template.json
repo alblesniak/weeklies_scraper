@@ -15,5 +15,11 @@
       "instance_group": "InstanceGroupName1",
       "zone": "us-east1-b"
     }
-  ]
+  ],
+  "proxy_config": {
+    "proxy_servers_file": "proxy_servers.txt",
+    "proxy_port": "3128",
+    "proxy_login": "username",
+    "proxy_pass": "password"
+  }
 }

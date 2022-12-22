@@ -1,9 +1,7 @@
 import scrapy
-import re
 from scrapy.loader import ItemLoader
 from weeklies_scraper.items import WeekliesScraperItem
 from urllib.parse import urljoin
-from pprint import pprint
 
 # Spider for crawling Przewodnik Katolicki magazine's website
 
@@ -77,10 +75,10 @@ class PrzewodnikKatolickiSpider(scrapy.Spider):
             "Parse function called parse_article on {}".format(response.url)
         )
         article_authors = response.xpath(
-            "//article[@class='artykul']//span[@class='autor']/text()").get()
+            "(//article[@class='artykul']//span[@class='autor'] | //article[@class='artykul']//span[@class='wpis']//text())/text()").get()
         article_intro = response.xpath("//p[@class='wstep']/text()").get()
         article_content = response.xpath(
-            ".//article[@class='artykul']/div[@class='tresc']/p/text()"
+            "//article[@class='artykul']/div[@class='tresc']/descendant-or-self::text()"
         ).extract()
         article_tags = response.xpath(
             ".//div[@class='tagi clearfix']/ul/li/span/a/text()"

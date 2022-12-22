@@ -2,6 +2,5 @@
 .vscode
 scrapy_data.db
 gcloud_proxies_config.json
-gcp_key.json
 scrapy.log
 proxy_list.txt

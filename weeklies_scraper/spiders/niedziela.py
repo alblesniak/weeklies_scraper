@@ -15,6 +15,9 @@ class NiedzielaSpider(scrapy.Spider):
     def parse(self, response):
         self.logger.info(
             "Parse function called parse on {}".format(response.url))
+        # Print the proxy IP
+        proxy_ip = response.meta['proxy']
+        print(f'Proxy IP: {proxy_ip}')
         # Parse the response and yield new requests to crawl other pages
         years = response.xpath(
             './/ul[@class="list-inline pt-main px-main text-center"]/li/a/@href'

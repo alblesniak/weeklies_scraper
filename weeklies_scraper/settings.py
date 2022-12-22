@@ -21,9 +21,8 @@ SPIDER_MIDDLEWARES = {
 
 # Middlewares to use for the downloader
 DOWNLOADER_MIDDLEWARES = {
-    "weeklies_scraper.middlewares.WeekliesScraperDownloaderMiddleware": 543,
-    'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 544,
-    'weeklies_scraper.middlewares.RandomProxy': 545,
+    'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
+    'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
 }
 
 # Pipelines to use for the spider
@@ -38,12 +37,12 @@ ITEM_PIPELINES = {
 CONNECTION_STRING = "sqlite:///scrapy_data.db"
 
 # List of HTTP status codes that the spider is allowed to handle
-HTTPERROR_ALLOWED_CODES = [404]
+# HTTPERROR_ALLOWED_CODES = [404]
 
 # Set the request fingerprinter implementation to a future-proof version
-REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
+REQUEST_FINGERPRINTER_IMPLEMENTATION = '2.7'
 # Set the twisted reactor to a future-proof version
-TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+# TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 
 # Set the log level for the spider
 LOG_LEVEL = "INFO"
@@ -51,16 +50,5 @@ LOG_LEVEL = "INFO"
 #  Set the log file for the spider
 # LOG_FILE = "scrapy.log"
 
-# Set path to the Google Cloud Platform settings for proxy servers
-# See: https://www.youtube.com/watch?v=0MZY649MiQM&t
-GCLOUD_CONFIG_FILE = "gcloud_proxies_config.json"
-
 # Set path to file with proxy servers
-PROXY_SERVERS_FILE = "proxy_servers.txt"
-
-# Set open port for proxy servers
-PROXY_PORT = "3128"
-
-# Set credentials to proxy servers
-PROXY_LOGIN = os.environ.get('PROXY_LOGIN')
-PROXY_PASSWORD = os.environ.get('PROXY_PASSWORD')
+ROTATING_PROXY_LIST_PATH = os.path.abspath("proxy_servers.txt")
