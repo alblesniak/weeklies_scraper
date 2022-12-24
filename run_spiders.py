@@ -105,22 +105,22 @@ def main():
         config = json.load(f)
         logging.info('GCLOUD configuration for proxy servers loaded.')
 
-    # Start GCP proxy servers
-    for project in config["projects"]:
-        # Create a GCloudManager instance
-        manager = GCloudManager(project_id=project["project_id"],
-                                instance_group_name=project["instance_group"],
-                                zone=project["zone"])
-        # Start and get GCP proxy servers
-        manager.resize(size=8)
-        proxies = manager.listproxy()
-        # Provide data for proxy servers and append them to the text file
-        with open(config['proxy_config']['proxy_servers_file'], 'a') as f:
-            # lines = [
-            # f'''{line}:{config['proxy_config']['proxy_port']}:{config['proxy_config']['proxy_login']}:{config['proxy_config']['proxy_pass']}\n''' for line in proxies.split('\n')]
-            lines = [
-                f'''{config['proxy_config']['proxy_login']}:{config['proxy_config']['proxy_pass']}@{line}:{config['proxy_config']['proxy_port']}\n''' for line in proxies.split('\n')]
-            f.writelines(lines)
+    # # Start GCP proxy servers
+    # for project in config["projects"]:
+    #     # Create a GCloudManager instance
+    #     manager = GCloudManager(project_id=project["project_id"],
+    #                             instance_group_name=project["instance_group"],
+    #                             zone=project["zone"])
+    #     # Start and get GCP proxy servers
+    #     manager.resize(size=8)
+    #     proxies = manager.listproxy()
+    #     # Provide data for proxy servers and append them to the text file
+    #     with open(config['proxy_config']['proxy_servers_file'], 'a') as f:
+    #         # lines = [
+    #         # f'''{line}:{config['proxy_config']['proxy_port']}:{config['proxy_config']['proxy_login']}:{config['proxy_config']['proxy_pass']}\n''' for line in proxies.split('\n')]
+    #         lines = [
+    #             f'''{config['proxy_config']['proxy_login']}:{config['proxy_config']['proxy_pass']}@{line}:{config['proxy_config']['proxy_port']}\n''' for line in proxies.split('\n')]
+    #         f.writelines(lines)
 
     # Get the Scrapy settings
     settings = get_project_settings()
@@ -139,19 +139,9 @@ def main():
 
     load_and_run_spiders(spiders_names=spiders_names, settings=settings)
 
-    # Stop GCP proxy servers
-    for project in config["projects"]:
-        # Create a GCloudManager instance
-        manager = GCloudManager(project_id=project["project_id"],
-                                instance_group_name=project["instance_group"],
-                                zone=project["zone"])
-        # Start and get GCP proxy servers
-        manager.resize(size=0)
-    logging.info('Proxy servers stopped.')
 
-    # Remove file with proxy servers
-    os.remove(config['proxy_config']['proxy_servers_file'])
-
+# Remove file with proxy servers
+# os.remove(config['proxy_config']['proxy_servers_file'])
 
 if __name__ == "__main__":
     main()

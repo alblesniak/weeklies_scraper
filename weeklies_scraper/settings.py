@@ -28,6 +28,7 @@ DOWNLOADER_MIDDLEWARES = {
 # Pipelines to use for the spider
 
 ITEM_PIPELINES = {
+    "weeklies_scraper.pipelines.FullfillDataPipeline": 100,
     "weeklies_scraper.pipelines.ScriptStripperPipeline": 200,
     "weeklies_scraper.pipelines.TextCleanerPipeline": 300,
     "weeklies_scraper.pipelines.SQLitePipeline": 400

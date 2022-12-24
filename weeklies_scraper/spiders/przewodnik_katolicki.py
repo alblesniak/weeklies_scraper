@@ -75,7 +75,7 @@ class PrzewodnikKatolickiSpider(scrapy.Spider):
             "Parse function called parse_article on {}".format(response.url)
         )
         article_authors = response.xpath(
-            "(//article[@class='artykul']//span[@class='autor'] | //article[@class='artykul']//span[@class='wpis']//text())/text()").get()
+            "//article[@class='artykul']//span[@class='wpis']//text()").get()
         article_intro = response.xpath("//p[@class='wstep']/text()").get()
         article_content = response.xpath(
             "//article[@class='artykul']/div[@class='tresc']/descendant-or-self::text()"
@@ -113,9 +113,6 @@ class PrzewodnikKatolickiSpider(scrapy.Spider):
         else:
             loader.add_value("article_content", "")
         # Extract the article tags and add it to the loader
-        if article_tags is not None:
-            loader.add_value("article_tags", article_tags)
-        else:
-            loader.add_value("article_tags", "")
+        loader.add_value("article_tags", '; '.join(article_tags))
         # Load the item with the extracted information
         yield loader.load_item()
