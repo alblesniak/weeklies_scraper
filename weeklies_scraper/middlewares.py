@@ -1,4 +1,26 @@
 from scrapy import signals
+from scrapy.http import HtmlResponse
+import sqlite3
+
+
+class ExistenceCheckMiddleware:
+    def __init__(self):
+        # Connect to the database
+        self.conn = sqlite3.connect("scrapy_data.db")
+        self.cursor = self.conn.cursor()
+
+    def process_request(self, request, spider):
+        # Check if the request's URL already exists in the articles table
+        self.cursor.execute(
+            "SELECT id FROM articles WHERE article_url = ?", (request.url,)
+        )
+        result = self.cursor.fetchone()
+        # If the URL already exists, return a response object with no content
+        if result is not None:
+            return HtmlResponse(request.url, body=b"", encoding="utf-8")
+
+    def close_spider(self, spider):
+        self.conn.close()
 
 
 class WeekliesScraperSpiderMiddleware:

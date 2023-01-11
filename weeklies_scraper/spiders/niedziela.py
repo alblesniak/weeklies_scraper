@@ -100,7 +100,7 @@ class NiedzielaSpider(scrapy.Spider):
                 loader.add_value("article_intro", "")
             # Extract the article content and add it to the loader
             article_content = response.xpath(
-                "//article[@class='article  mx-main']/p[not(@*[name() != 'class']) or @class='styt' or @class='pyt' or @class='odp']/text()"
+                ".//article[@class='article  mx-main']/p[not(@*[name() != 'class']) or @class='styt' or @class='pyt' or @class='odp']/text()"
             ).extract()
             if article_content is not None:
                 loader.add_value("article_content", article_content)

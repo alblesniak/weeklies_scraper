@@ -1,13 +1,13 @@
 from weeklies_scraper.items import WeekliesScraperItem
+from scrapy.exceptions import DropItem
 import re
 import sqlite3
 
 
 class FullfillDataPipeline(object):
-
     def __init__(self):
-        self.keys_to_check = ['article_authors',
-                              'article_tags', 'article_intro', 'section_name', 'issue_cover_url']
+        self.keys_to_check = ['article_authors', 'article_tags',
+                              'article_intro', 'section_name', 'issue_cover_url']
 
     def process_item(self, item, spider):
         for key in self.keys_to_check:
@@ -16,44 +16,36 @@ class FullfillDataPipeline(object):
         return item
 
 
+class ShortestPipeline(object):
+    def process_item(self, item, spider):
+        if item['article_content'] == None or len(item['article_content']) < 100:
+            raise DropItem("Item shorter than 100: %s" % item)
+        else:
+            return item
+
+
 class TextCleanerPipeline(object):
     def process_item(self, item, spider):
-        """Clean the text fields of the item object.
-
-        Args:
-            item (scrapy.Item): The item object to be processed.
-            spider (scrapy.Spider): The spider that generated the item.
-
-        Returns:
-            scrapy.Item: The processed item object.
-        """
-        # Iterate over the fields of the item object
-        for field in item.fields:
-            # If the field is a string, clean the text
-            if isinstance(item.get(field), str):
-                # Remove multiple spaces and newlines
-                item[field] = re.sub(r"\s+", " ", item[field])
-                # Strip leading and trailing whitespace
-                item[field] = item[field].strip()
+        # Split the string on the newline character
+        # Remove empty lines using a list comprehension
+        # Join the list of non-empty lines back into a single string
+        if item['article_content']:
+            lines_content = item['article_content'].split('\n')
+            lines_content = [line.strip()
+                             for line in lines_content if line != '']
+            item['article_content'] = '\n'.join(lines_content).strip()
+        if item['article_intro']:
+            lines_intro = item['article_intro'].split('\n')
+            lines_intro = [line.strip() for line in lines_intro if line != '']
+            item['article_intro'] = '\n'.join(lines_intro).strip()
         return item
 
 
 class ScriptStripperPipeline(object):
     def process_item(self, item, spider):
-        # Check if the item is a WeekliesScraperItem
-        if isinstance(item, WeekliesScraperItem):
-            # Remove HTML, JavaScript, and CSS scripts using regular expressions
-            # The first regular expression removes all script tags and their contents
-            # The second regular expression removes all style tags and their contents
-            # The third regular expression removes all other HTML tags
-            item["article_content"] = re.sub(
-                r"<script.*?</script>", "", item["article_content"]
-            )
-            item["article_content"] = re.sub(
-                r"<style.*?</style>", "", item["article_content"]
-            )
-            item["article_content"] = re.sub(
-                r"<[^>]*>", "", item["article_content"])
+        # Remove HTML, JavaScript, and CSS scripts using regular expressions
+        item["article_content"] = re.sub(
+            r"<[^>]*>", "", item["article_content"])
         return item
 
 

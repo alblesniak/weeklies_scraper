@@ -83,6 +83,7 @@ class GoscNiedzielnySpider(Spider):
 
         if not acrobat and not limiter:
             data_dict = response.meta
+
             if len(data_dict['article_content']) == 0:
                 data_dict['article_url'] = response.url
                 data_dict['article_authors'] = response.xpath(

@@ -78,7 +78,7 @@ class PrzewodnikKatolickiSpider(scrapy.Spider):
             "//article[@class='artykul']//span[@class='wpis']//text()").get()
         article_intro = response.xpath("//p[@class='wstep']/text()").get()
         article_content = response.xpath(
-            "//article[@class='artykul']/div[@class='tresc']/descendant-or-self::text()"
+            "//article[@class='artykul']/div[@class='tresc']/descendant-or-self::text()[not(parent::style)]"
         ).extract()
         article_tags = response.xpath(
             ".//div[@class='tagi clearfix']/ul/li/span/a/text()"
@@ -94,24 +94,14 @@ class PrzewodnikKatolickiSpider(scrapy.Spider):
         # Add the section name to the loader
         loader.add_value("section_name", response.meta["section_name"])
         # Add the article authors to the loader
-        if article_authors is not None:
-            loader.add_value("article_authors", article_authors)
-        else:
-            loader.add_value("article_authors", "")
-        # Add the article URL to the loader
+        loader.add_value("article_authors", article_authors)
         loader.add_value("article_url", response.url)
         # Extract the article title and add it to the loader
         loader.add_value("article_title", response.meta["article_title"])
         # Extract the article intro and add it to the loader
-        if article_intro is not None:
-            loader.add_value("article_intro", article_intro)
-        else:
-            loader.add_value("article_intro", "")
+        loader.add_value("article_intro", article_intro)
         # Extract the article content and add it to the loader
-        if article_content is not None:
-            loader.add_value("article_content", article_content)
-        else:
-            loader.add_value("article_content", "")
+        loader.add_value("article_content", article_content)
         # Extract the article tags and add it to the loader
         loader.add_value("article_tags", '; '.join(article_tags))
         # Load the item with the extracted information

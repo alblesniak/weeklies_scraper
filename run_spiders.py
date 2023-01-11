@@ -136,7 +136,7 @@ def main():
     else:
         raise ValueError(
             "You must specify a spider to run or use the --all argument to run all available spiders")
-
+    spiders_names = ['niedziela', 'przewodnik_katolicki', 'gosc_niedzielny']
     load_and_run_spiders(spiders_names=spiders_names, settings=settings)
 
 
