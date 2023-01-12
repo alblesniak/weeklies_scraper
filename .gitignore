@@ -4,3 +4,4 @@ scrapy_data.db
 gcloud_proxies_config.json
 scrapy.log
 proxy_list.txt
+proxy_servers.txt
